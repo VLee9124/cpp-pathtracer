@@ -1,11 +1,6 @@
 #pragma once
 
 #include <limits>
-
-// NOTE: infinity is already declared in utils.h but compiler complains, so redefine inf
-
-const double inf = std::numeric_limits<double>::infinity();
-
 class interval
 {
 public:
@@ -14,7 +9,7 @@ public:
   static const interval empty;
   static const interval universe;
 
-  interval() : min(+inf), max(-inf) {}
+  interval() : min(+infinity), max(-infinity) {}
   interval(double min, double max) : min(min), max(max) {}
 
   double size() const
@@ -31,7 +26,16 @@ public:
   {
     return min < x && x < max;
   }
+
+  double clamp(double x) const
+  {
+    if (x < min)
+      return min;
+    if (x > max)
+      return max;
+    return x;
+  }
 };
 
-const interval interval::empty = interval(+inf, -inf);
-const interval interval::universe = interval(-inf, +inf);
+const interval interval::empty = interval(+infinity, -infinity);
+const interval interval::universe = interval(-infinity, +infinity);
