@@ -1,34 +1,15 @@
-#include "color.h"
-#include "vec3.h"
-#include "ray.h"
+#include "utils.h"
 
-#include <iostream>
+#include "hittable.h"
+#include "hittable_list.h"
+#include "sphere.h"
 
-double hit_sphere(const point3 &center, double radius, const ray &r)
+color ray_color(const ray &r, const hittable &world)
 {
-  vec3 origin_to_center = center - r.origin();
-  auto a = dot(r.direction(), r.direction());
-  auto b = -2.0 * dot(r.direction(), origin_to_center);
-  auto c = dot(origin_to_center, origin_to_center) - radius * radius;
-  auto discriminant = b * b - 4 * a * c;
-
-  if (discriminant < 0)
+  hit_record rec;
+  if (world.hit(r, 0, infinity, rec))
   {
-    return -1.0;
-  }
-  else
-  {
-    return (-b - std::sqrt(discriminant)) / (2.0 * a);
-  }
-}
-
-color ray_color(const ray &r)
-{
-  auto t = hit_sphere(point3(0, 0, -1), 0.5, r);
-  if (t > 0.0)
-  {
-    vec3 normal = unit_vector(r.at(t) - vec3(0, 0, -1)); // P - C
-    return 0.5 * color(normal.x() + 1, normal.y() + 1, normal.z() + 1);
+    return 0.5 * (rec.normal + color(1, 1, 1));
   }
 
   vec3 unit_direction = unit_vector(r.direction());
@@ -47,6 +28,13 @@ int main()
 
   int image_height = int(image_width / aspect_ratio);
   image_height = (image_height < 1) ? 1 : image_height; /* Ensure image height is at least 1px*/
+
+  // World
+
+  hittable_list world;
+
+  world.add(make_shared<sphere>(point3(0, 0, -1), 0.5));
+  world.add(make_shared<sphere>(point3(0, -100.5, -1), 100)); // Flat surface
 
   // Camera
 
@@ -81,7 +69,7 @@ int main()
       auto ray_direction = pixel_center - camera_center;
       ray r(camera_center, ray_direction);
 
-      color pixel_color = ray_color(r);
+      color pixel_color = ray_color(r, world);
       write_color(std::cout, pixel_color);
     }
   }

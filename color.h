@@ -1,8 +1,7 @@
 #pragma once
 
 #include "vec3.h"
-
-#include <iostream>
+#include "utils.h"
 
 using color = vec3;
 
