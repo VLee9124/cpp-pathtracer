@@ -4,8 +4,33 @@
 
 #include <iostream>
 
+double hit_sphere(const point3 &center, double radius, const ray &r)
+{
+  vec3 origin_to_center = center - r.origin();
+  auto a = dot(r.direction(), r.direction());
+  auto b = -2.0 * dot(r.direction(), origin_to_center);
+  auto c = dot(origin_to_center, origin_to_center) - radius * radius;
+  auto discriminant = b * b - 4 * a * c;
+
+  if (discriminant < 0)
+  {
+    return -1.0;
+  }
+  else
+  {
+    return (-b - std::sqrt(discriminant)) / (2.0 * a);
+  }
+}
+
 color ray_color(const ray &r)
 {
+  auto t = hit_sphere(point3(0, 0, -1), 0.5, r);
+  if (t > 0.0)
+  {
+    vec3 normal = unit_vector(r.at(t) - vec3(0, 0, -1)); // P - C
+    return 0.5 * color(normal.x() + 1, normal.y() + 1, normal.z() + 1);
+  }
+
   vec3 unit_direction = unit_vector(r.direction());
   auto a = 0.5 * (unit_direction.y() + 1.0);
   return (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
