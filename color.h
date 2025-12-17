@@ -21,13 +21,12 @@ void write_color(std::ostream &out, const color &pixel_color)
   auto g = pixel_color.y();
   auto b = pixel_color.z();
 
-  // APply linear to gamma transform for gamma 2
+  // Apply linear to gamma transform for gamma 2
   r = linear_to_gamma(r);
   g = linear_to_gamma(g);
   b = linear_to_gamma(b);
 
   // Map [0,1] range to [0,255] range
-
   static const interval intensity(0.000, 0.999);
   int rbyte = int(256 * intensity.clamp(r));
   int gbyte = int(256 * intensity.clamp(g));

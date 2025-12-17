@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hittable.h"
+#include "material.h"
 
 class camera
 {
@@ -51,8 +52,8 @@ void camera::initialize()
   pixel_delta_u = viewport_u / image_width;
   pixel_delta_v = viewport_v / image_height;
 
-  // Calculate location of upper pixel
   /*
+  Calculate location of upper pixel
   (1) subtract focal length to move onto the viewport plane
   (2) subtract half of view_u to move opposite of view_u axis (places you on left edge)
   (3) subtract half of view_v to move opposite of view_v axis (places you on top)
@@ -110,8 +111,11 @@ color camera::ray_color(const ray &r, int depth, const hittable &world) const
 
   if (world.hit(r, interval(0.001, infinity), rec))
   {
-    vec3 direction = rec.normal + random_unit_vector();
-    return 0.5 * ray_color(ray(rec.p, direction), depth - 1, world);
+    ray scattered;
+    color attenuation;
+    if (rec.mat->scatter(r, rec, attenuation, scattered))
+      return attenuation * ray_color(scattered, depth - 1, world);
+    return color(0);
   }
 
   // Blue sky background
