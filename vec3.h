@@ -29,6 +29,7 @@ public:
 
     return *this;
   }
+
   vec3 &operator*=(double t)
   {
     e[0] *= t;
@@ -37,14 +38,17 @@ public:
 
     return *this;
   }
+
   vec3 &operator/=(double t)
   {
     return *this *= 1 / t;
   }
+
   double length() const
   {
     return std::sqrt(length_squared());
   }
+
   double length_squared() const
   {
     return e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
@@ -65,6 +69,17 @@ public:
   static vec3 random(double min, double max)
   {
     return vec3(random_double(min, max), random_double(min, max), random_double(min, max));
+  }
+  
+  // Threadsafe versions
+  static vec3 random(std::mt19937& rng)
+  {
+    return vec3(random_double(rng), random_double(rng), random_double(rng));
+  }
+
+  static vec3 random(double min, double max, std::mt19937& rng)
+  {
+    return vec3(random_double(min, max, rng), random_double(min, max, rng), random_double(min, max, rng));
   }
 };
 
@@ -147,4 +162,18 @@ inline vec3 random_on_hemisphere(const vec3 &normal)
 inline vec3 reflect(const vec3 &v, const vec3 &n)
 {
   return v - 2 * dot(v, n) * n;
+}
+
+// Threadsafe versions
+
+inline vec3 random_unit_vector(std::mt19937& rng)
+{
+  /* Iterate through candidates until a valid unit vector is reached */
+  while (true)
+  {
+    auto p = vec3::random(-1, 1, rng);
+    auto lensq = p.length_squared();
+    if (1e-160 < lensq && lensq <= 1)
+      return p / sqrt(lensq);
+  }
 }

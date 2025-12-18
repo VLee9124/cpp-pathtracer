@@ -6,6 +6,7 @@ class material
 public:
   virtual ~material() = default;
   virtual bool scatter(const ray& r_in, const hit_record& rec, color&attentuation, ray& scattered) const { return false; }
+  virtual bool scatter(const ray& r_in, const hit_record& rec, color&attentuation, ray& scattered, std::mt19937& rng) const { return false; }
 };
 
 class lambertian : public material
@@ -26,6 +27,20 @@ public:
     return true;
   }
 
+  // Threadsafe scatter
+  bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, std::mt19937& rng) const override
+  {
+    auto scatter_direction = rec.normal + random_unit_vector(rng);
+
+    // Catch degenerate scatter direction
+    if (scatter_direction.near_zero())
+      scatter_direction = rec.normal;
+
+    scattered = ray(rec.p, scatter_direction);
+    attenuation = albedo;
+    return true;
+  }
+
 private:
   color albedo;
 };
@@ -35,6 +50,15 @@ class metal : public material
 public:
   metal(const color &albedo) : albedo(albedo) {}
   bool scatter(const ray &r_in, const hit_record &rec, color &attenuation, ray &scattered) const override
+  {
+    vec3 reflected = reflect(r_in.direction(), rec.normal);
+    scattered = ray(rec.p, reflected);
+    attenuation = albedo;
+    return true;
+  }
+
+  // Threadsafe version (same implementation)
+  bool scatter(const ray &r_in, const hit_record &rec, color &attenuation, ray &scattered, std::mt19937& rng) const override
   {
     vec3 reflected = reflect(r_in.direction(), rec.normal);
     scattered = ray(rec.p, reflected);

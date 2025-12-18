@@ -5,6 +5,13 @@
 
 #include <thread>
 #include <vector>
+#include <mutex>
+#include <chrono>
+
+using std::chrono::high_resolution_clock;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::milliseconds;
 
 class camera
 {
@@ -81,11 +88,15 @@ void camera::initialize()
 
 void camera::render(const hittable &world)
 {
+
   initialize();
+
+  auto t1 = high_resolution_clock::now();
 
   // Parallelize pixel computations first, then print
   std::vector<color> frameBuffer(image_width * image_height);
   std::atomic<int> next_j{0};
+  std::atomic<int> completed{0};
 
   auto worker = [&](int thread_id){
     std::seed_seq seq {1337u, (std::uint32_t)thread_id};
@@ -103,11 +114,21 @@ void camera::render(const hittable &world)
         }
         frameBuffer[j * image_width + i] = pixel_samples_scale * pixel_color;
       }
+
+      // Print completed lines (output stream is locked to avoid race conditions)
+      int done = completed.fetch_add(1) + 1;
+      std::mutex log_mutex; // Create the mutex so that only one thread can access this code
+      {
+        std::lock_guard<std::mutex> lock(log_mutex); // Mutex is locked here, unlocked when it goes out of scope
+        std::clog << "\rScanlines remaining: " << (image_height - done) << ' ' << std::flush;
+      }
     }
   };
 
+  // Get num threads and create threads
   unsigned num_threads = std::thread::hardware_concurrency();
   if (num_threads == 0) num_threads = 6; // Fall back, choose 6
+  std::clog << "Using " << num_threads << " threads.\n";
 
   std::vector<std::thread> threads;
   threads.reserve(num_threads);
@@ -131,6 +152,17 @@ void camera::render(const hittable &world)
   }
 
   std::clog << "\rDone.               \n";
+
+  auto t2 = high_resolution_clock::now();
+  /* Getting number of milliseconds as an integer. */
+  auto ms_int = duration_cast<milliseconds>(t2 - t1);
+
+  /* Getting number of milliseconds as a double. */
+  duration<double, std::milli> ms_double = t2 - t1;
+
+  std::clog << ms_int.count() << "ms\n";
+  std::clog << ms_double.count() << "ms\n";
+
 }
 
 ray camera::get_ray(int i, int j) const
@@ -191,7 +223,7 @@ color camera::ray_color(const ray &r, int depth, const hittable &world, std::mt1
   {
     ray scattered;
     color attenuation;
-    if (rec.mat->scatter(r, rec, attenuation, scattered))
+    if (rec.mat->scatter(r, rec, attenuation, scattered, rng))
       return attenuation * ray_color(scattered, depth - 1, world, rng);
     return color(0);
   }
