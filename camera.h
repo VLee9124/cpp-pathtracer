@@ -3,6 +3,9 @@
 #include "hittable.h"
 #include "material.h"
 
+#include <thread>
+#include <vector>
+
 class camera
 {
 public:
@@ -23,13 +26,25 @@ private:
 
   void initialize();
   ray get_ray(int i, int j) const;
+  ray get_ray(int i, int j, std::mt19937& ray) const;
+
   color ray_color(const ray &r, int depth, const hittable &world) const;
+  color ray_color(const ray &r, int depth, const hittable &world, std::mt19937& ray) const;
+
   vec3 sample_square() const
   {
     // Returns vector to random point in [-.5, -.5] - [+.5, +.5] unit square.
     return vec3(random_double() - 0.5, random_double() - 0.5, 0);
   }
+
+  vec3 sample_square(std::mt19937& rng) const {
+    return vec3(random_double(rng) - 0.5, random_double(rng) - 0.5, 0);
+  }
 };
+
+
+
+
 
 void camera::initialize()
 {
@@ -68,6 +83,36 @@ void camera::render(const hittable &world)
 {
   initialize();
 
+  // Parallelize pixel computations first, then print
+  std::vector<color> frameBuffer(image_width * image_height);
+  std::atomic<int> next_j;
+
+  // auto worker = [&](int thread_id){
+  //   std::seed_seq seq {1337u, (std::uint32_t)thread_id};
+  //   std::mt19937 rng(seq);
+
+  //   while (true) {
+  //     int j = next_j.fetch_add(1); // Add atomically for thread safeness
+  //     if (j >= image_height) break;
+
+  //     for (int i = 0; i < image_width; i++) {
+  //       color pixel_color(0);
+  //       for (int sample = 0; sample < samples_per_pixel; sample++){
+  //         ray r = get_ray(i, j, rng);
+  //         pixel_color += ray_color(r, max_iter, world, rng);
+  //       }
+  //       frameBuffer[j * image_width + i] = pixel_samples_scale * pixel_color;
+  //     }
+  //   }
+  // };
+
+  // for (int t = 0; t < num_threads; t++) {
+  //   threads.emplace_back(worker, t);
+  // }
+
+  std::seed_seq seq {1337u};
+  std::mt19937 rng(seq);
+
   std::cout << "P3\n"
             << image_width << ' ' << image_height << "\n255\n";
 
@@ -80,10 +125,19 @@ void camera::render(const hittable &world)
       color pixel_color(0, 0, 0);
       for (int sample = 0; sample < samples_per_pixel; sample++)
       {
-        ray r = get_ray(i, j);
-        pixel_color += ray_color(r, max_iter, world);
+        ray r = get_ray(i, j, rng);
+        pixel_color += ray_color(r, max_iter, world, rng);
       }
       write_color(std::cout, pixel_samples_scale * pixel_color);
+    }
+  }
+
+  // Printing
+  std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+
+  for (int j = 0; j < image_height; j++){
+    for (int i = 0; i < image_width; i++){
+      write_color(std::cout, frameBuffer[j*image_width + i]);
     }
   }
 
@@ -94,6 +148,19 @@ ray camera::get_ray(int i, int j) const
 {
   // Construct a camera ray originating from the origin and directed at randomly sampled point around pixel location i, j
   auto offset = sample_square();
+  auto pixel_sample = pixel_00_location + ((i + offset.x()) * pixel_delta_u) + ((j + offset.y()) * pixel_delta_v);
+
+  auto ray_origin = camera_center;
+  auto ray_direction = pixel_sample - ray_origin;
+
+  return ray(ray_origin, ray_direction);
+}
+
+ray camera::get_ray(int i, int j, std::mt19937& rng) const
+{
+  /* THREAD SAFE */
+  // Construct a camera ray originating from the origin and directed at randomly sampled point around pixel location i, j
+  auto offset = sample_square(rng);
   auto pixel_sample = pixel_00_location + ((i + offset.x()) * pixel_delta_u) + ((j + offset.y()) * pixel_delta_v);
 
   auto ray_origin = camera_center;
@@ -115,6 +182,28 @@ color camera::ray_color(const ray &r, int depth, const hittable &world) const
     color attenuation;
     if (rec.mat->scatter(r, rec, attenuation, scattered))
       return attenuation * ray_color(scattered, depth - 1, world);
+    return color(0);
+  }
+
+  // Blue sky background
+  vec3 unit_direction = unit_vector(r.direction());
+  auto a = 0.5 * (unit_direction.y() + 1.0);
+  return (1.0 - a) * color(1.0) + a * color(0.5, 0.7, 1.0);
+}
+
+color camera::ray_color(const ray &r, int depth, const hittable &world, std::mt19937& rng) const
+{
+  if (depth <= 0)
+    return color(0);
+
+  hit_record rec;
+
+  if (world.hit(r, interval(0.001, infinity), rec))
+  {
+    ray scattered;
+    color attenuation;
+    if (rec.mat->scatter(r, rec, attenuation, scattered))
+      return attenuation * ray_color(scattered, depth - 1, world, rng);
     return color(0);
   }
 
