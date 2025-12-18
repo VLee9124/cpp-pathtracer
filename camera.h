@@ -85,51 +85,40 @@ void camera::render(const hittable &world)
 
   // Parallelize pixel computations first, then print
   std::vector<color> frameBuffer(image_width * image_height);
-  std::atomic<int> next_j;
+  std::atomic<int> next_j{0};
 
-  // auto worker = [&](int thread_id){
-  //   std::seed_seq seq {1337u, (std::uint32_t)thread_id};
-  //   std::mt19937 rng(seq);
+  auto worker = [&](int thread_id){
+    std::seed_seq seq {1337u, (std::uint32_t)thread_id};
+    std::mt19937 rng(seq);
 
-  //   while (true) {
-  //     int j = next_j.fetch_add(1); // Add atomically for thread safeness
-  //     if (j >= image_height) break;
+    while (true) {
+      int j = next_j.fetch_add(1); // Add atomically for thread safeness
+      if (j >= image_height) break;
 
-  //     for (int i = 0; i < image_width; i++) {
-  //       color pixel_color(0);
-  //       for (int sample = 0; sample < samples_per_pixel; sample++){
-  //         ray r = get_ray(i, j, rng);
-  //         pixel_color += ray_color(r, max_iter, world, rng);
-  //       }
-  //       frameBuffer[j * image_width + i] = pixel_samples_scale * pixel_color;
-  //     }
-  //   }
-  // };
-
-  // for (int t = 0; t < num_threads; t++) {
-  //   threads.emplace_back(worker, t);
-  // }
-
-  std::seed_seq seq {1337u};
-  std::mt19937 rng(seq);
-
-  std::cout << "P3\n"
-            << image_width << ' ' << image_height << "\n255\n";
-
-  for (int j = 0; j < image_height; j++)
-  {
-    std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-    for (int i = 0; i < image_width; i++)
-    {
-      // Average sampled neighbors of i,j to get blur effect
-      color pixel_color(0, 0, 0);
-      for (int sample = 0; sample < samples_per_pixel; sample++)
-      {
-        ray r = get_ray(i, j, rng);
-        pixel_color += ray_color(r, max_iter, world, rng);
+      for (int i = 0; i < image_width; i++) {
+        color pixel_color(0);
+        for (int sample = 0; sample < samples_per_pixel; sample++){
+          ray r = get_ray(i, j, rng);
+          pixel_color += ray_color(r, max_iter, world, rng);
+        }
+        frameBuffer[j * image_width + i] = pixel_samples_scale * pixel_color;
       }
-      write_color(std::cout, pixel_samples_scale * pixel_color);
     }
+  };
+
+  unsigned num_threads = std::thread::hardware_concurrency();
+  if (num_threads == 0) num_threads = 6; // Fall back, choose 6
+
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads);
+
+  for (int t = 0; t < num_threads; t++) {
+    // threads are named 0, 1, 2, ...
+    threads.emplace_back(worker, t);
+  }
+
+  for (auto& t : threads) {
+    t.join();
   }
 
   // Printing

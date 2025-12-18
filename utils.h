@@ -29,17 +29,19 @@ inline double random_double()
   return distribution(generator);
 }
 
+inline double random_double(double min, double max)
+{
+  // Return real val in [min, max]
+  return min + (max - min) * random_double();
+}
+
+// Thread safe versions for parallel computation
+
 inline double random_double(std::mt19937& rng){
   // Create a thread safe random
 
   std::uniform_real_distribution<double> distribution(0.0, 1.0);
   return distribution(rng);
-}
-
-inline double random_double(double min, double max)
-{
-  // Return real val in [min, max]
-  return min + (max - min) * random_double();
 }
 
 
