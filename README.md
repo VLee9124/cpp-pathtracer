@@ -7,4 +7,6 @@ Notes + Todo List:
 -   Features Multithreaded renderer using C++ Threads
 -   Code needs to be refactored
 
-![alt text](image.png)
+Here is a sample render that took 30 minutes to render.
+
+![Final Render](image.png)
