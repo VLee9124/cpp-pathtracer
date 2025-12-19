@@ -8,6 +8,8 @@
 #include <mutex>
 #include <chrono>
 
+#include <omp.h>
+
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
 using std::chrono::duration;
@@ -103,53 +105,40 @@ void camera::render(const hittable &world)
 
   auto t1 = high_resolution_clock::now();
 
-  // Parallelize pixel computations first, then print
   std::vector<color> frameBuffer(image_width * image_height);
-  std::atomic<int> next_j{0};
+  
   std::atomic<int> completed{0};
 
-  auto worker = [&](int thread_id){
-    std::seed_seq seq {1337u, (std::uint32_t)thread_id};
+  int num_threads = omp_get_max_threads();
+  std::clog << "Using " << num_threads << " threads (OpenMP).\n";
+
+  #pragma omp parallel 
+  {
+    int thread_id = omp_get_thread_num();
+
+    std::seed_seq seq{1337u, (std::uint32_t)thread_id};
     std::mt19937 rng(seq);
 
-    while (true) {
-      int j = next_j.fetch_add(1); // Add atomically for thread safeness
-      if (j >= image_height) break;
-
+    #pragma omp for schedule(dynamic, 1)
+    for (int j = 0; j < image_height; j++) {
       for (int i = 0; i < image_width; i++) {
         color pixel_color(0);
+
         for (int sample = 0; sample < samples_per_pixel; sample++){
           ray r = get_ray(i, j, rng);
           pixel_color += ray_color(r, max_iter, world, rng);
         }
+
         frameBuffer[j * image_width + i] = pixel_samples_scale * pixel_color;
       }
 
-      // Print completed lines (output stream is locked to avoid race conditions)
       int done = completed.fetch_add(1) + 1;
-      std::mutex log_mutex; // Create the mutex so that only one thread can access this code
+
+      #pragma omp critical 
       {
-        std::lock_guard<std::mutex> lock(log_mutex); // Mutex is locked here, unlocked when it goes out of scope
         std::clog << "\rScanlines remaining: " << (image_height - done) << ' ' << std::flush;
       }
     }
-  };
-
-  // Get num threads and create threads
-  unsigned num_threads = std::thread::hardware_concurrency();
-  if (num_threads == 0) num_threads = 6; // Fall back, choose 6
-  std::clog << "Using " << num_threads << " threads.\n";
-
-  std::vector<std::thread> threads;
-  threads.reserve(num_threads);
-
-  for (int t = 0; t < num_threads; t++) {
-    // threads are named 0, 1, 2, ...
-    threads.emplace_back(worker, t);
-  }
-
-  for (auto& t : threads) {
-    t.join();
   }
 
   // Printing
