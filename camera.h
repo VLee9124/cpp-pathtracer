@@ -177,19 +177,6 @@ ray camera::get_ray(int i, int j) const
   return ray(ray_origin, ray_direction);
 }
 
-ray camera::get_ray(int i, int j, std::mt19937& rng) const
-{
-  /* THREAD SAFE */
-  // Construct a camera ray originating from the origin and directed at randomly sampled point around pixel location i, j
-  auto offset = sample_square(rng);
-  auto pixel_sample = pixel_00_location + ((i + offset.x()) * pixel_delta_u) + ((j + offset.y()) * pixel_delta_v);
-
-  auto ray_origin = camera_center;
-  auto ray_direction = pixel_sample - ray_origin;
-
-  return ray(ray_origin, ray_direction);
-}
-
 color camera::ray_color(const ray &r, int depth, const hittable &world) const
 {
   if (depth <= 0)
@@ -210,6 +197,23 @@ color camera::ray_color(const ray &r, int depth, const hittable &world) const
   vec3 unit_direction = unit_vector(r.direction());
   auto a = 0.5 * (unit_direction.y() + 1.0);
   return (1.0 - a) * color(1.0) + a * color(0.5, 0.7, 1.0);
+}
+
+
+
+
+// Threadsafe Versions
+ray camera::get_ray(int i, int j, std::mt19937& rng) const
+{
+  /* THREAD SAFE */
+  // Construct a camera ray originating from the origin and directed at randomly sampled point around pixel location i, j
+  auto offset = sample_square(rng);
+  auto pixel_sample = pixel_00_location + ((i + offset.x()) * pixel_delta_u) + ((j + offset.y()) * pixel_delta_v);
+
+  auto ray_origin = camera_center;
+  auto ray_direction = pixel_sample - ray_origin;
+
+  return ray(ray_origin, ray_direction);
 }
 
 color camera::ray_color(const ray &r, int depth, const hittable &world, std::mt19937& rng) const

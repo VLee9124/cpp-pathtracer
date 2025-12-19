@@ -164,8 +164,9 @@ inline vec3 reflect(const vec3 &v, const vec3 &n)
   return v - 2 * dot(v, n) * n;
 }
 
-// Threadsafe versions
 
+
+// Threadsafe versions
 inline vec3 random_unit_vector(std::mt19937& rng)
 {
   /* Iterate through candidates until a valid unit vector is reached */
@@ -176,4 +177,13 @@ inline vec3 random_unit_vector(std::mt19937& rng)
     if (1e-160 < lensq && lensq <= 1)
       return p / sqrt(lensq);
   }
+}
+
+inline vec3 random_on_hemisphere(const vec3 &normal, std::mt19937& rng)
+{
+  vec3 on_unit_sphere = random_unit_vector(rng);
+  if (dot(on_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
+    return on_unit_sphere;
+  else
+    return -on_unit_sphere;
 }
